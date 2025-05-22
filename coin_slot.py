@@ -32,7 +32,7 @@ import threading
 import time
 
 class CoinSlot:
-    def __init__(self, pin=23, bouncetime=50, debug=True, timeout=1.0):
+    def __init__(self, pin=16, bouncetime=50, debug=True, timeout=1.0):  # Physical pin 16
         self.pin = pin
         self.bouncetime = bouncetime
         self.debug = debug
@@ -66,8 +66,8 @@ class CoinSlot:
 
     def start(self):
         try:
-            # Set up GPIO
-            GPIO.setmode(GPIO.BCM)
+            # Set up GPIO using physical pin numbering
+            GPIO.setmode(GPIO.BOARD)
             GPIO.setup(self.pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
 
             # Test if we can read the pin
@@ -80,7 +80,7 @@ class CoinSlot:
             
             self._is_running = True
             if self.debug:
-                print(f"[CoinSlot] Monitoring started on GPIO {self.pin}")
+                print(f"[CoinSlot] Monitoring started on physical pin {self.pin}")
                 
         except Exception as e:
             if self.debug:
@@ -122,10 +122,10 @@ class CoinSlot:
     def test_pin(self):
         """Test if the GPIO pin is working properly."""
         try:
-            GPIO.setmode(GPIO.BCM)
+            GPIO.setmode(GPIO.BOARD)
             GPIO.setup(self.pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
             value = GPIO.input(self.pin)
-            print(f"Pin {self.pin} current value: {value}")
+            print(f"Physical pin {self.pin} current value: {value}")
             return True
         except Exception as e:
             print(f"Error testing pin: {e}")

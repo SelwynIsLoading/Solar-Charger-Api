@@ -6,7 +6,7 @@ from coin_slot import CoinSlot
 
 # Initialize coin slot
 try:
-    coin_slot = CoinSlot(pin=23, debug=True)
+    coin_slot = CoinSlot(pin=16, debug=True)
     # Test the pin first
     if coin_slot.test_pin():
         print("GPIO pin test successful, starting coin slot...")
