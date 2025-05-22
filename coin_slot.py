@@ -77,17 +77,28 @@ class CoinSlot:
         try:
             # First cleanup any existing GPIO setup
             GPIO.cleanup()
+            time.sleep(0.1)  # Small delay after cleanup
             
             # Set up GPIO
             GPIO.setmode(GPIO.BCM)
+            time.sleep(0.1)  # Small delay after setting mode
+            
+            # Configure the pin
             GPIO.setup(self.pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+            time.sleep(0.1)  # Small delay after pin setup
+            
+            # Test if we can read the pin
+            test_value = GPIO.input(self.pin)
+            if self.debug:
+                print(f"[CoinSlot] Initial pin state: {test_value}")
             
             # Remove any existing event detection
             try:
                 GPIO.remove_event_detect(self.pin)
+                time.sleep(0.1)  # Small delay after removing event detection
             except RuntimeError:
                 pass  # Ignore if no event detection was set up
-                
+            
             # Add new event detection
             GPIO.add_event_detect(self.pin, GPIO.RISING, callback=self._coin_pulse, bouncetime=self.bouncetime)
             
@@ -117,4 +128,19 @@ class CoinSlot:
                 current_count = self._pulse_count
                 
         return current_count
+
+    def test_pin(self):
+        """Test if the GPIO pin is working properly."""
+        try:
+            GPIO.cleanup()
+            GPIO.setmode(GPIO.BCM)
+            GPIO.setup(self.pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+            value = GPIO.input(self.pin)
+            print(f"Pin {self.pin} current value: {value}")
+            return True
+        except Exception as e:
+            print(f"Error testing pin: {e}")
+            return False
+        finally:
+            GPIO.cleanup()
 
