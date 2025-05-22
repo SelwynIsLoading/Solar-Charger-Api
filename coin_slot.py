@@ -32,7 +32,7 @@ import threading
 import time
 
 class CoinSlot:
-    def __init__(self, pin=23, bouncetime=50, debug=True, timeout=1.0):  # Changed to GPIO 23
+    def __init__(self, pin=23, bouncetime=50, debug=True, timeout=1.0):
         self.pin = pin
         self.bouncetime = bouncetime
         self.debug = debug
@@ -66,30 +66,14 @@ class CoinSlot:
 
     def start(self):
         try:
-            # First ensure GPIO is cleaned up
-            GPIO.cleanup()
-            time.sleep(0.1)
-
             # Set up GPIO
             GPIO.setmode(GPIO.BCM)
-            time.sleep(0.1)
-
-            # Configure the pin
             GPIO.setup(self.pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-            time.sleep(0.1)
 
             # Test if we can read the pin
             test_value = GPIO.input(self.pin)
             if self.debug:
                 print(f"[CoinSlot] Initial pin state: {test_value}")
-
-            # Try to remove any existing event detection
-            try:
-                GPIO.remove_event_detect(self.pin)
-            except:
-                pass
-
-            time.sleep(0.1)
 
             # Add event detection
             GPIO.add_event_detect(self.pin, GPIO.RISING, callback=self._coin_pulse, bouncetime=self.bouncetime)
@@ -138,18 +122,12 @@ class CoinSlot:
     def test_pin(self):
         """Test if the GPIO pin is working properly."""
         try:
-            GPIO.cleanup()
-            time.sleep(0.1)
             GPIO.setmode(GPIO.BCM)
-            time.sleep(0.1)
             GPIO.setup(self.pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-            time.sleep(0.1)
             value = GPIO.input(self.pin)
             print(f"Pin {self.pin} current value: {value}")
             return True
         except Exception as e:
             print(f"Error testing pin: {e}")
             return False
-        finally:
-            GPIO.cleanup()
 
