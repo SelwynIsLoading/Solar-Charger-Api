@@ -29,11 +29,10 @@
 
 import RPi.GPIO as GPIO
 import threading
-import requests
 import time
 
 class CoinSlot:
-    def __init__(self, pin=27, bouncetime=50, debug=True, timeout=1.0):
+    def __init__(self, pin=17, bouncetime=50, debug=True, timeout=1.0):
         self.pin = pin
         self.bouncetime = bouncetime
         self.debug = debug
@@ -42,13 +41,6 @@ class CoinSlot:
         self._pulse_count = 0
         self._lock = threading.Lock()
         self._timer = None
-        self._is_running = False
-        self._poll_thread = None
-        self._last_state = None
-        self._debounce_count = 0
-        self._debounce_threshold = 5  # Number of consistent readings required
-        self._last_pulse_time = 0
-        self._min_pulse_interval = 0.1  # Minimum time between pulses in seconds
 
     def _handle_pulse_timeout(self):
         with self._lock:
@@ -59,89 +51,33 @@ class CoinSlot:
             if self.debug:
                 print(f"[CoinSlot] Coin session ended: {pulse_total} pulses")
 
-    def _poll_pin(self):
-        while self._is_running:
-            try:
-                current_state = GPIO.input(self.pin)
-                current_time = time.time()
-                
-                # Detect falling edge (1 -> 0) with debouncing
-                if self._last_state == 1 and current_state == 0:
-                    self._debounce_count += 1
-                    
-                    # Only count as pulse if we have enough consistent readings
-                    # and enough time has passed since last pulse
-                    if (self._debounce_count >= self._debounce_threshold and 
-                        current_time - self._last_pulse_time >= self._min_pulse_interval):
-                        
-                        with self._lock:
-                            self._pulse_count += 1
-                            self._last_pulse_time = current_time
-                            if self.debug:
-                                print(f"[CoinSlot] Pulse received. Total pulses this session: {self._pulse_count}")
-
-                            # Reset timeout
-                            if self._timer:
-                                self._timer.cancel()
-                            self._timer = threading.Timer(self.timeout, self._handle_pulse_timeout)
-                            self._timer.start()
-                elif current_state == 1:
-                    # Reset debounce counter when pin is high
-                    self._debounce_count = 0
-
-                self._last_state = current_state
-                time.sleep(0.01)  # Small delay to prevent CPU hogging
-            except Exception as e:
-                if self.debug:
-                    print(f"[CoinSlot] Error in polling: {e}")
-                time.sleep(0.1)
-
-    def start(self):
-        if self._is_running:
+    def _coin_pulse(self, channel):
+        with self._lock:
+            self._pulse_count += 1
             if self.debug:
-                print("[CoinSlot] Already running")
-            return
+                print(f"[CoinSlot] Pulse received. Total pulses this session: {self._pulse_count}")
 
-        try:
-            # Set up GPIO
-            GPIO.setmode(GPIO.BCM)
-            GPIO.setup(self.pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-
-            # Test if we can read the pin
-            self._last_state = GPIO.input(self.pin)
-            if self.debug:
-                print(f"[CoinSlot] Initial pin state: {self._last_state}")
-
-            # Start polling thread
-            self._is_running = True
-            self._poll_thread = threading.Thread(target=self._poll_pin)
-            self._poll_thread.daemon = True
-            self._poll_thread.start()
-            
-            if self.debug:
-                print(f"[CoinSlot] Monitoring started on GPIO {self.pin}")
-                
-        except Exception as e:
-            if self.debug:
-                print(f"[CoinSlot] Error starting coin slot: {str(e)}")
-            self.stop()  # Clean up on error
-            raise RuntimeError(f"Failed to initialize coin slot: {str(e)}")
-
-    def stop(self):
-        try:
-            self._is_running = False
+            # Reset timeout
             if self._timer:
                 self._timer.cancel()
-            
-            if self._poll_thread and self._poll_thread.is_alive():
-                self._poll_thread.join(timeout=1.0)
-            
-            GPIO.cleanup()
-            if self.debug:
-                print("[CoinSlot] GPIO cleaned up and threads stopped.")
-        except Exception as e:
-            if self.debug:
-                print(f"[CoinSlot] Error during cleanup: {str(e)}")
+            self._timer = threading.Timer(self.timeout, self._handle_pulse_timeout)
+            self._timer.start()
+
+    def start(self):
+        GPIO.cleanup()
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setup(self.pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+        GPIO.remove_event_detect(self.pin)
+        GPIO.add_event_detect(self.pin, GPIO.RISING, callback=self._coin_pulse, bouncetime=self.bouncetime)
+        if self.debug:
+            print(f"[CoinSlot] Monitoring started on GPIO {self.pin}")
+
+    def stop(self):
+        if self._timer:
+            self._timer.cancel()
+        GPIO.cleanup()
+        if self.debug:
+            print("[CoinSlot] GPIO cleaned up and timer stopped.")
 
     def wait_for_pulse(self):
         """Wait for a pulse and return the pulse count."""
