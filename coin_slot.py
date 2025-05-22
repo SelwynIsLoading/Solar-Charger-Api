@@ -74,13 +74,30 @@ class CoinSlot:
             self._timer.start()
 
     def start(self):
-        GPIO.cleanup()
-        GPIO.setmode(GPIO.BCM)
-        GPIO.setup(self.pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-        GPIO.remove_event_detect(self.pin)
-        GPIO.add_event_detect(self.pin, GPIO.RISING, callback=self._coin_pulse, bouncetime=self.bouncetime)
-        if self.debug:
-            print(f"[CoinSlot] Monitoring started on GPIO {self.pin}")
+        try:
+            # First cleanup any existing GPIO setup
+            GPIO.cleanup()
+            
+            # Set up GPIO
+            GPIO.setmode(GPIO.BCM)
+            GPIO.setup(self.pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+            
+            # Remove any existing event detection
+            try:
+                GPIO.remove_event_detect(self.pin)
+            except RuntimeError:
+                pass  # Ignore if no event detection was set up
+                
+            # Add new event detection
+            GPIO.add_event_detect(self.pin, GPIO.RISING, callback=self._coin_pulse, bouncetime=self.bouncetime)
+            
+            if self.debug:
+                print(f"[CoinSlot] Monitoring started on GPIO {self.pin}")
+                
+        except Exception as e:
+            if self.debug:
+                print(f"[CoinSlot] Error starting coin slot: {str(e)}")
+            raise RuntimeError(f"Failed to initialize coin slot: {str(e)}")
 
     def stop(self):
         if self._timer:
