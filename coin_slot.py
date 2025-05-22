@@ -43,6 +43,8 @@ class CoinSlot:
         self._lock = threading.Lock()
         self._timer = None
         self._is_running = False
+        self._poll_thread = None
+        self._last_state = None
 
     def _handle_pulse_timeout(self):
         with self._lock:
@@ -53,17 +55,30 @@ class CoinSlot:
             if self.debug:
                 print(f"[CoinSlot] Coin session ended: {pulse_total} pulses")
 
-    def _coin_pulse(self, channel):
-        with self._lock:
-            self._pulse_count += 1
-            if self.debug:
-                print(f"[CoinSlot] Pulse received. Total pulses this session: {self._pulse_count}")
+    def _poll_pin(self):
+        while self._is_running:
+            try:
+                current_state = GPIO.input(self.pin)
+                
+                # Detect falling edge (1 -> 0)
+                if self._last_state == 1 and current_state == 0:
+                    with self._lock:
+                        self._pulse_count += 1
+                        if self.debug:
+                            print(f"[CoinSlot] Pulse received. Total pulses this session: {self._pulse_count}")
 
-            # Reset timeout
-            if self._timer:
-                self._timer.cancel()
-            self._timer = threading.Timer(self.timeout, self._handle_pulse_timeout)
-            self._timer.start()
+                        # Reset timeout
+                        if self._timer:
+                            self._timer.cancel()
+                        self._timer = threading.Timer(self.timeout, self._handle_pulse_timeout)
+                        self._timer.start()
+
+                self._last_state = current_state
+                time.sleep(0.01)  # Small delay to prevent CPU hogging
+            except Exception as e:
+                if self.debug:
+                    print(f"[CoinSlot] Error in polling: {e}")
+                time.sleep(0.1)
 
     def start(self):
         if self._is_running:
@@ -72,35 +87,21 @@ class CoinSlot:
             return
 
         try:
-            # First ensure GPIO is cleaned up
-            GPIO.cleanup()
-            time.sleep(0.1)
-
             # Set up GPIO
             GPIO.setmode(GPIO.BCM)
-            time.sleep(0.1)
-
-            # Configure the pin with internal pull-up resistor
             GPIO.setup(self.pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-            time.sleep(0.1)
 
             # Test if we can read the pin
-            test_value = GPIO.input(self.pin)
+            self._last_state = GPIO.input(self.pin)
             if self.debug:
-                print(f"[CoinSlot] Initial pin state: {test_value}")
+                print(f"[CoinSlot] Initial pin state: {self._last_state}")
 
-            # Try to remove any existing event detection
-            try:
-                GPIO.remove_event_detect(self.pin)
-            except:
-                pass
-
-            time.sleep(0.1)
-
-            # Add event detection with FALLING edge (since we're using PUD_UP)
-            GPIO.add_event_detect(self.pin, GPIO.FALLING, callback=self._coin_pulse, bouncetime=self.bouncetime)
-            
+            # Start polling thread
             self._is_running = True
+            self._poll_thread = threading.Thread(target=self._poll_pin)
+            self._poll_thread.daemon = True
+            self._poll_thread.start()
+            
             if self.debug:
                 print(f"[CoinSlot] Monitoring started on GPIO {self.pin}")
                 
@@ -112,19 +113,16 @@ class CoinSlot:
 
     def stop(self):
         try:
+            self._is_running = False
             if self._timer:
                 self._timer.cancel()
             
-            if self._is_running:
-                try:
-                    GPIO.remove_event_detect(self.pin)
-                except:
-                    pass
-                GPIO.cleanup()
-                self._is_running = False
-                
+            if self._poll_thread and self._poll_thread.is_alive():
+                self._poll_thread.join(timeout=1.0)
+            
+            GPIO.cleanup()
             if self.debug:
-                print("[CoinSlot] GPIO cleaned up and timer stopped.")
+                print("[CoinSlot] GPIO cleaned up and threads stopped.")
         except Exception as e:
             if self.debug:
                 print(f"[CoinSlot] Error during cleanup: {str(e)}")
@@ -144,12 +142,8 @@ class CoinSlot:
     def test_pin(self):
         """Test if the GPIO pin is working properly."""
         try:
-            GPIO.cleanup()
-            time.sleep(0.1)
             GPIO.setmode(GPIO.BCM)
-            time.sleep(0.1)
             GPIO.setup(self.pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-            time.sleep(0.1)
             value = GPIO.input(self.pin)
             print(f"Pin {self.pin} current value: {value}")
             return True
