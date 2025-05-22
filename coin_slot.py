@@ -33,11 +33,10 @@ import requests
 import time
 
 class CoinSlot:
-    def __init__(self, pin=17, bouncetime=50, debug=True, webhook_url=None, timeout=1.0):
+    def __init__(self, pin=17, bouncetime=50, debug=True, timeout=1.0):
         self.pin = pin
         self.bouncetime = bouncetime
         self.debug = debug
-        self.webhook_url = webhook_url
         self.timeout = timeout  # seconds between pulses to separate coins
 
         self._pulse_count = 0
@@ -52,14 +51,6 @@ class CoinSlot:
         if pulse_total > 0:
             if self.debug:
                 print(f"[CoinSlot] Coin session ended: {pulse_total} pulses")
-
-            if self.webhook_url:
-                try:
-                    requests.post(self.webhook_url, json={"pulses": pulse_total})
-                    if self.debug:
-                        print(f"[CoinSlot] Webhook sent: {pulse_total} pulses → {self.webhook_url}")
-                except Exception as e:
-                    print(f"[CoinSlot] Webhook failed: {e}")
 
     def _coin_pulse(self, channel):
         with self._lock:

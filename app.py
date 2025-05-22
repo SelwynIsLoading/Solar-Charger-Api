@@ -4,10 +4,7 @@ from serial_comm import send_command_to_arduino
 # from coin_slot import setup_coin_slot, get_coin_count, reset_coin_count
 from coin_slot import CoinSlot
 
-# Replace with your Blazor or other server webhook endpoint
-WEBHOOK_URL = "http://192.168.1.100:5001/api/coin"
-
-coin_slot = CoinSlot(pin=17, webhook_url=WEBHOOK_URL, debug=True)
+coin_slot = CoinSlot(pin=17, debug=True)
 coin_slot.start()
 
 app = Flask(__name__)
@@ -49,7 +46,6 @@ def wait_for_coins():
     try:
         pulse_count = coin_slot.wait_for_pulse()
         return jsonify({
-            "status": "success",
             "pulses": pulse_count
         })
     except Exception as e:
