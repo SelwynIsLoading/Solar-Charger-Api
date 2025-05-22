@@ -4,8 +4,18 @@ from serial_comm import send_command_to_arduino
 # from coin_slot import setup_coin_slot, get_coin_count, reset_coin_count
 from coin_slot import CoinSlot
 
-coin_slot = CoinSlot(pin=17, debug=True)
-coin_slot.start()
+# Initialize coin slot
+try:
+    coin_slot = CoinSlot(pin=17, debug=True)
+    # Test the pin first
+    if coin_slot.test_pin():
+        print("GPIO pin test successful, starting coin slot...")
+        coin_slot.start()
+    else:
+        print("Warning: GPIO pin test failed!")
+except Exception as e:
+    print(f"Error initializing coin slot: {e}")
+    coin_slot = None
 
 app = Flask(__name__)
 # setup_coin_slot()

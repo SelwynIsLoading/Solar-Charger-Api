@@ -42,6 +42,7 @@ class CoinSlot:
         self._pulse_count = 0
         self._lock = threading.Lock()
         self._timer = None
+        self._is_running = False
 
     def _handle_pulse_timeout(self):
         with self._lock:
@@ -65,48 +66,51 @@ class CoinSlot:
             self._timer.start()
 
     def start(self):
+        if self._is_running:
+            if self.debug:
+                print("[CoinSlot] Already running")
+            return
+
         try:
-            # First cleanup any existing GPIO setup
-            GPIO.cleanup()
-            time.sleep(0.1)  # Small delay after cleanup
-            
             # Set up GPIO
             GPIO.setmode(GPIO.BCM)
-            time.sleep(0.1)  # Small delay after setting mode
             
             # Configure the pin
             GPIO.setup(self.pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-            time.sleep(0.1)  # Small delay after pin setup
             
             # Test if we can read the pin
             test_value = GPIO.input(self.pin)
             if self.debug:
                 print(f"[CoinSlot] Initial pin state: {test_value}")
             
-            # Remove any existing event detection
-            try:
-                GPIO.remove_event_detect(self.pin)
-                time.sleep(0.1)  # Small delay after removing event detection
-            except RuntimeError:
-                pass  # Ignore if no event detection was set up
-            
-            # Add new event detection
+            # Add event detection
             GPIO.add_event_detect(self.pin, GPIO.RISING, callback=self._coin_pulse, bouncetime=self.bouncetime)
             
+            self._is_running = True
             if self.debug:
                 print(f"[CoinSlot] Monitoring started on GPIO {self.pin}")
                 
         except Exception as e:
             if self.debug:
                 print(f"[CoinSlot] Error starting coin slot: {str(e)}")
+            self.stop()  # Clean up on error
             raise RuntimeError(f"Failed to initialize coin slot: {str(e)}")
 
     def stop(self):
-        if self._timer:
-            self._timer.cancel()
-        GPIO.cleanup()
-        if self.debug:
-            print("[CoinSlot] GPIO cleaned up and timer stopped.")
+        try:
+            if self._timer:
+                self._timer.cancel()
+            
+            if self._is_running:
+                GPIO.remove_event_detect(self.pin)
+                GPIO.cleanup()
+                self._is_running = False
+                
+            if self.debug:
+                print("[CoinSlot] GPIO cleaned up and timer stopped.")
+        except Exception as e:
+            if self.debug:
+                print(f"[CoinSlot] Error during cleanup: {str(e)}")
 
     def wait_for_pulse(self):
         """Wait for a pulse and return the pulse count."""
@@ -123,7 +127,6 @@ class CoinSlot:
     def test_pin(self):
         """Test if the GPIO pin is working properly."""
         try:
-            GPIO.cleanup()
             GPIO.setmode(GPIO.BCM)
             GPIO.setup(self.pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
             value = GPIO.input(self.pin)
