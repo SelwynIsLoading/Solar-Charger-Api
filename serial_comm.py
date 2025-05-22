@@ -1,6 +1,6 @@
 import serial
 
-arduino_serial = serial.Serial("/dev/ttyAMA0", 9600, timeout=1)
+arduino_serial = serial.Serial("/dev/ttyACM0", 9600, timeout=1)
 
 def send_command_to_arduino(command: str):
     if not command.endswith('\n'):
