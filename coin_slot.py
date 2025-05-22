@@ -45,6 +45,10 @@ class CoinSlot:
         self._is_running = False
         self._poll_thread = None
         self._last_state = None
+        self._debounce_count = 0
+        self._debounce_threshold = 5  # Number of consistent readings required
+        self._last_pulse_time = 0
+        self._min_pulse_interval = 0.1  # Minimum time between pulses in seconds
 
     def _handle_pulse_timeout(self):
         with self._lock:
@@ -59,19 +63,31 @@ class CoinSlot:
         while self._is_running:
             try:
                 current_state = GPIO.input(self.pin)
+                current_time = time.time()
                 
-                # Detect falling edge (1 -> 0)
+                # Detect falling edge (1 -> 0) with debouncing
                 if self._last_state == 1 and current_state == 0:
-                    with self._lock:
-                        self._pulse_count += 1
-                        if self.debug:
-                            print(f"[CoinSlot] Pulse received. Total pulses this session: {self._pulse_count}")
+                    self._debounce_count += 1
+                    
+                    # Only count as pulse if we have enough consistent readings
+                    # and enough time has passed since last pulse
+                    if (self._debounce_count >= self._debounce_threshold and 
+                        current_time - self._last_pulse_time >= self._min_pulse_interval):
+                        
+                        with self._lock:
+                            self._pulse_count += 1
+                            self._last_pulse_time = current_time
+                            if self.debug:
+                                print(f"[CoinSlot] Pulse received. Total pulses this session: {self._pulse_count}")
 
-                        # Reset timeout
-                        if self._timer:
-                            self._timer.cancel()
-                        self._timer = threading.Timer(self.timeout, self._handle_pulse_timeout)
-                        self._timer.start()
+                            # Reset timeout
+                            if self._timer:
+                                self._timer.cancel()
+                            self._timer = threading.Timer(self.timeout, self._handle_pulse_timeout)
+                            self._timer.start()
+                elif current_state == 1:
+                    # Reset debounce counter when pin is high
+                    self._debounce_count = 0
 
                 self._last_state = current_state
                 time.sleep(0.01)  # Small delay to prevent CPU hogging
