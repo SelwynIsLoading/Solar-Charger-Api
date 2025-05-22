@@ -89,3 +89,15 @@ class CoinSlot:
         if self.debug:
             print("[CoinSlot] GPIO cleaned up and timer stopped.")
 
+    def wait_for_pulse(self):
+        """Wait for a pulse and return the pulse count."""
+        with self._lock:
+            current_count = self._pulse_count
+            
+        while current_count == 0:
+            time.sleep(0.1)  # Small delay to prevent CPU hogging
+            with self._lock:
+                current_count = self._pulse_count
+                
+        return current_count
+

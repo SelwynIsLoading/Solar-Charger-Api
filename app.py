@@ -44,5 +44,19 @@ def send_to_arduino():
 #     reset_coin_count()
 #     return jsonify({"status": "reset", "coins": 0})
 
+@app.route("/coins/wait", methods=["GET"])
+def wait_for_coins():
+    try:
+        pulse_count = coin_slot.wait_for_pulse()
+        return jsonify({
+            "status": "success",
+            "pulses": pulse_count
+        })
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8000)
